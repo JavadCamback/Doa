@@ -2,8 +2,8 @@
 import React, { useMemo, useState } from 'react';
 import { DailyLog, PRAYER_LABELS } from '../types';
 import { getISODate, getRelativeDates, getPersianDayName } from '../utils';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { TrendingUp, Calendar, Trophy, Zap } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend } from 'recharts';
+import { TrendingUp, Calendar, Trophy, Zap, PieChart as PieIcon } from 'lucide-react';
 
 interface DashboardProps {
   logs: Record<string, DailyLog>;
@@ -14,6 +14,12 @@ const Dashboard: React.FC<DashboardProps> = ({ logs }) => {
 
   const stats = useMemo(() => {
     const dates = getRelativeDates(range).reverse();
+    const prayerQualityData = {
+      early: 0,
+      mid: 0,
+      late: 0
+    };
+
     const chartData = dates.map(date => {
       const iso = getISODate(date);
       const log = logs[iso];
@@ -21,9 +27,16 @@ const Dashboard: React.FC<DashboardProps> = ({ logs }) => {
       if (log) {
         // Calculate daily spiritual score
         Object.values(log.prayers).forEach(p => {
-          if (p === 'early') score += 10;
-          if (p === 'mid') score += 7;
-          if (p === 'late') score += 4;
+          if (p === 'early') {
+            score += 10;
+            prayerQualityData.early++;
+          } else if (p === 'mid') {
+            score += 7;
+            prayerQualityData.mid++;
+          } else if (p === 'late') {
+            score += 4;
+            prayerQualityData.late++;
+          }
         });
         score += (log.duas?.length || 0) * 5;
       }
@@ -35,13 +48,18 @@ const Dashboard: React.FC<DashboardProps> = ({ logs }) => {
       };
     });
 
-    // Fix: Explicitly cast Object.values to DailyLog[] and type the reduce accumulator to avoid unknown type errors on lines 38 and 40
     const totalDuas = (Object.values(logs) as DailyLog[]).reduce((acc: number, log) => acc + log.duas.length, 0);
     const totalPrayers = (Object.values(logs) as DailyLog[]).reduce((acc: number, log) => 
       acc + Object.values(log.prayers).filter(p => p !== 'none').length, 0
     );
 
-    return { chartData, totalDuas, totalPrayers };
+    const qualityPieData = [
+      { name: 'اول وقت', value: prayerQualityData.early, color: '#10b981' },
+      { name: 'میان وقت', value: prayerQualityData.mid, color: '#f59e0b' },
+      { name: 'آخر وقت', value: prayerQualityData.late, color: '#ef4444' }
+    ].filter(d => d.value > 0);
+
+    return { chartData, totalDuas, totalPrayers, qualityPieData };
   }, [logs, range]);
 
   return (
@@ -86,7 +104,7 @@ const Dashboard: React.FC<DashboardProps> = ({ logs }) => {
           <TrendingUp className="w-4 h-4 text-emerald-600" />
           <h3 className="text-xs font-black text-slate-700">نمودار رشد معنوی (امتیاز بندگی)</h3>
         </div>
-        <div className="h-64 w-full">
+        <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stats.chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -108,13 +126,46 @@ const Dashboard: React.FC<DashboardProps> = ({ logs }) => {
         </div>
       </div>
 
+      {/* Chart: Prayer Quality Breakdown */}
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-emerald-50">
+        <div className="flex items-center gap-2 mb-4">
+          <PieIcon className="w-4 h-4 text-emerald-600" />
+          <h3 className="text-xs font-black text-slate-700">تحلیل کیفیت اقامه نمازها</h3>
+        </div>
+        <div className="h-56 w-full flex items-center">
+          {stats.qualityPieData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.qualityPieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {stats.qualityPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full text-center text-slate-400 text-xs italic py-10">داده‌ای برای نمایش کیفیت نماز وجود ندارد.</div>
+          )}
+        </div>
+      </div>
+
       {/* Chart: Duas Frequency */}
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-emerald-50">
         <div className="flex items-center gap-2 mb-4">
           <Calendar className="w-4 h-4 text-emerald-600" />
           <h3 className="text-xs font-black text-slate-700">تعداد کارهای عبادی در طول زمان</h3>
         </div>
-        <div className="h-48 w-full">
+        <div className="h-40 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={stats.chartData}>
               <Bar dataKey="duas" radius={[4, 4, 0, 0]}>
